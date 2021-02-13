@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Bitball</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+      html, body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+      }
+    </style>
+  </head>
+
+  <body>
+    <canvas id="game-canvas"></canvas>
+    <script>
+      const socket = io()
+      let connected = false
+
+      socket.on('connect', () => {
+        connected = true
+      })
+
+      socket.on('disconnect', () => {
+        connected = false
+      })
+
+      const canvas = document.getElementById('game-canvas')
+
+      function renderGame(match) {
+        canvas.width = window.innerWidth
+        canvas.height = window.innerHeight
+        const context = canvas.getContext('2d')
+
+        const drawPlayer = (x, y) => {
+          context.beginPath()
+          context.arc(x, y, 15, 0, 2 * Math.PI)
+          context.fill()
+        }
+
+        const drawFieldFrame = () => {
+          context.beginPath()
+          context.rect(10, 10, canvas.width - 20, canvas.height - 20)
+          context.stroke()
+        }
+
+        const clearCanvas = () => {
+          context.clearRect(0, 0, canvas.width, canvas.height)
+        }
+
+        const render = () => {
+          clearCanvas()
+          drawFieldFrame()
+          for(playerId in match.players) {
+            const player = match.players[playerId]
+            drawPlayer(player.x, player.y)
+          }
+
+          requestAnimationFrame(render)
+        }
+
+        requestAnimationFrame(render)
+      }
+
+      socket.on('bootstrap', match => {
+        renderGame(match)
+        document.addEventListener('keydown', event => {
+          if(!connected) return
+
+          const player = match.players[socket.id]
+          const speed = 20
+
+          if (event.which === 37 && player.x - speed >= 0) {
+            player.x = player.x - speed
+            // socket.emit('player-move', 'left')
+            socket.emit('player-move', { axis: 'x', speed: -speed })
+            return
+          }
+
+          if (event.which === 38 && player.y - speed >= 0) {
+            player.y = player.y - speed
+            // socket.emit('player-move', 'up')
+            socket.emit('player-move', { axis: 'y', speed: -speed })
+            return
+          }
+
+          if (event.which === 39 && player.x + speed < canvas.width) {
+            player.x = player.x + speed
+            // socket.emit('player-move', 'right')
+            socket.emit('player-move', { axis: 'x', speed })
+            return
+          }
+
+          if (event.which === 40 && player.y + speed < canvas.height) {
+            player.y = player.y + speed
+            // socket.emit('player-move', 'down')
+            socket.emit('player-move', { axis: 'y', speed })
+            return
+          }
+        })
+
+        socket.on('player-update', ({ playerId, newState }) => {
+          match.players[playerId] = newState
+        })
+
+        socket.on('player-remove', playerId => {
+          delete match.players[playerId]
+        })
+      })
+    </script>
+  </body>
+</html>
